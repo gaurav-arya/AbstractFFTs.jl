@@ -561,3 +561,32 @@ Pre-plan an optimized real-input unnormalized transform, similar to
 the same as for [`brfft`](@ref).
 """
 plan_brfft
+
+##############################################################################
+
+region(p::Plan) = p.region
+region(p::ScaledPlan) = region(p.p)
+
+function Base.transpose(P::Plan{T}, x::AbstractArray) where {T}
+    dims = region(P)
+    N = normalization(T, size(P), dims)
+    if project_style(P) == :none
+        return 1/N * (P \ x)
+    else
+        halfdim = first(dims)
+        n = size(x, halfdim)
+        d = size(P, halfdim)
+        scale = reshape(
+            [(i == 1 || (i == n && 2 * (i - 1)) == d) ? 1 : 2 for i in 1:n],
+            ntuple(i -> i == first(dims) ? n : 1, Val(ndims(x)))
+        )
+        if project_style(P) == :real
+            @show scale
+            return 1/N * (P \ (x ./ scale))
+        elseif project_style(P) == :real_inv
+            return 1/N * scale .* (P \ x)
+        else
+            error("plan must define a valid projection style")
+        end
+    end
+end
