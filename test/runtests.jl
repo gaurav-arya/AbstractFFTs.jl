@@ -191,6 +191,37 @@ end
     @test @inferred(f9(plan_fft(zeros(10), 1), 10)) == 1/10
 end
 
+@testset "transpose" begin
+    @testset "fft transpose" begin
+        for L in [4, 5] # test odd and even lengths
+            x = rand(L)
+            y = rand(L)
+            P = plan_fft(similar(x))
+            @test dot(y, P * x) ≈ dot(transpose(P, y), x) 
+            Pinv = plan_ifft(similar(x))
+            @test dot(x, Pinv * y) ≈ dot(transpose(Pinv, x), y) 
+        end
+    end
+    @testset "rfft transpose" begin
+        for L in [4, 5] 
+            x = rand(L)
+            y_real = rand(L÷2 + 1)
+            y_imag = zeros(L÷2 + 1)
+            y = y_real .+ y_imag .* im 
+            # whole function is real -> complex, so for transposes I think we need to turn the complex output into a real vector 
+            y_flat = vcat(y_real, y_imag)
+            P = plan_rfft(similar(x))
+            Px = P * x
+            Px_flat = vcat(real.(Px), imag.(Px))
+            @test dot(y_flat, Px_flat) ≈ dot(transpose(P, y), x) 
+            Pinv = plan_irfft(similar(y), L)
+            PinvTx = transpose(Pinv, x)
+            PinvTx_flat = vcat(real.(PinvTx), imag.(PinvTx))
+            @test dot(x, Pinv * y) ≈ dot(PinvTx_flat, y_flat)
+        end
+    end
+end
+
 @testset "ChainRules" begin
     @testset "shift functions" begin
         for x in (randn(3), randn(3, 4), randn(3, 4, 5))

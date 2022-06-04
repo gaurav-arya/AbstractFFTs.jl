@@ -1,5 +1,5 @@
 # ffts
-function ChainRulesCore.frule((_, Δx, _), ::typeof(fft), x::AbstractArray, dims)
+function ChainRulesCore.frule((_, Δx, _), ::typeof(fft), x::AbstractArray, dims) 
     y = fft(x, dims)
     Δy = fft(Δx, dims)
     return y, Δy
@@ -149,4 +149,20 @@ function ChainRulesCore.rrule(::typeof(ifftshift), x::AbstractArray, dims)
         return ChainRulesCore.NoTangent(), x̄, ChainRulesCore.NoTangent()
     end
     return y, ifftshift_pullback
+end
+
+# fft plans
+function ChainRulesCore.frule((_, _, Δx), ::typeof(*), P::Plan, x::AbstractArray) 
+    y = P * x 
+    Δy = P * Δx
+    return y, Δy
+end
+function ChainRulesCore.rrule(::typeof(fft), x::AbstractArray, dims)
+    y = fft(x, dims)
+    project_x = ChainRulesCore.ProjectTo(x)
+    function fft_pullback(ȳ)
+        x̄ = project_x(bfft(ChainRulesCore.unthunk(ȳ), dims))
+        return ChainRulesCore.NoTangent(), x̄, ChainRulesCore.NoTangent()
+    end
+    return y, fft_pullback
 end

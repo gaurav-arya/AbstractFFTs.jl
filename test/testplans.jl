@@ -21,6 +21,9 @@ Base.ndims(::TestPlan{T,N}) where {T,N} = N
 Base.size(p::InverseTestPlan) = p.sz
 Base.ndims(::InverseTestPlan{T,N}) where {T,N} = N
 
+AbstractFFTs.projection_style(::TestPlan) = :none
+AbstractFFTs.projection_style(::InverseTestPlan) = :none
+
 function AbstractFFTs.plan_fft(x::AbstractArray{T}, region; kwargs...) where {T}
     return TestPlan{T}(region, size(x))
 end
@@ -107,6 +110,9 @@ mutable struct InverseTestRPlan{T,N} <: Plan{T}
         return new{T,N}(d, region, sz)
     end
 end
+
+AbstractFFTs.projection_style(::TestRPlan) = :real
+AbstractFFTs.projection_style(::InverseTestRPlan) = :real_inv
 
 function AbstractFFTs.plan_rfft(x::AbstractArray{T}, region; kwargs...) where {T}
     return TestRPlan{T}(region, size(x))
