@@ -203,9 +203,10 @@ end
         end
     end
     @testset "rfft transpose" begin
-        for L in [4, 5] 
+        for L in [4, 4] 
             x = rand(L)
-            y_real = rand(L÷2 + 1)
+            y_real = zeros(L÷2 + 1)
+            y_real[1] = 1 
             y_imag = zeros(L÷2 + 1)
             y = y_real .+ y_imag .* im 
             # whole function is real -> complex, so for transposes I think we need to turn the complex output into a real vector 

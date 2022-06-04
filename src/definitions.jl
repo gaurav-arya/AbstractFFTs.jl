@@ -573,32 +573,31 @@ function projection_style end
 # Transpose of non-scaled plan, output is (transpose of P) * x
 function Base.transpose(P::Plan{T}, x::AbstractArray) where {T}
     dims = region(P)
-    N = normalization(T, size(P), dims)
     if projection_style(P) == :none
+        N = normalization(T, size(P), dims)
         return 1/N * (P \ x)
-    else
+    elseif projection_style(P) == :real
         halfdim = first(dims)
-        if projection_style(P) == :real
-            n = size(x, halfdim)
-            d = size(P, halfdim)
-            scale = reshape(
-                [(i == 1 || (i == n && 2 * (i - 1)) == d) ? 1 : 2 for i in 1:n],
-                ntuple(i -> i == first(dims) ? n : 1, Val(ndims(x)))
-            )
-            return 1/N * (P \ (x ./ scale))
-        elseif projection_style(P) == :real_inv
-            d = size(x, halfdim)
-            n = size(P, halfdim)
-            @show d
-            @show n
-            scale = reshape(
-                [(i == 1 || (i == n && 2 * (i - 1)) == d) ? 1 : 2 for i in 1:n],
-                ntuple(i -> i == first(dims) ? n : 1, Val(ndims(x)))
-            )
-            return 1/N * scale .* (P \ x)
-        else
-            error("plan must define a valid projection style")
-        end
+        n = size(x, halfdim)
+        d = size(P, halfdim)
+        N = normalization(T, d, dims)
+        scale = reshape(
+            [(i == 1 || (i == n && 2 * (i - 1)) == d) ? 1 : 2 for i in 1:n],
+            ntuple(i -> i == first(dims) ? n : 1, Val(ndims(x)))
+        )
+        return 1/N * (P \ (x ./ scale))
+    elseif projection_style(P) == :real_inv
+        halfdim = first(dims)
+        d = size(x, halfdim)
+        n = size(P, halfdim)
+        N = normalization(T, d, dims)
+        scale = reshape(
+            [(i == 1 || (i == n && 2 * (i - 1)) == d) ? 1 : 2 for i in 1:n],
+            ntuple(i -> i == first(dims) ? n : 1, Val(ndims(x)))
+        )
+        return 1/N * scale .* (P \ x)
+    else
+        error("plan must define a valid projection style")
     end
 end
 
