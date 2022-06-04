@@ -157,12 +157,12 @@ function ChainRulesCore.frule((_, _, Δx), ::typeof(*), P::Plan, x::AbstractArra
     Δy = P * Δx
     return y, Δy
 end
-function ChainRulesCore.rrule(::typeof(fft), x::AbstractArray, dims)
-    y = fft(x, dims)
+function ChainRulesCore.rrule(::typeof(*), P::Plan, x::AbstractArray)
+    y = P * x
     project_x = ChainRulesCore.ProjectTo(x)
     function fft_pullback(ȳ)
-        x̄ = project_x(bfft(ChainRulesCore.unthunk(ȳ), dims))
-        return ChainRulesCore.NoTangent(), x̄, ChainRulesCore.NoTangent()
+        x̄ = project_x(transpose(P) * ȳ)
+        return ChainRulesCore.NoTangent(), ChainRulesCore.NoTangent(), x̄
     end
     return y, fft_pullback
 end

@@ -607,7 +607,7 @@ function Base.:*(p::TransposedPlan{T}, x::AbstractArray) where {T}
         halfdim = first(dims)
         d = size(p.p, halfdim)
         n = output_size(p.p, halfdim)
-        N = normalization(T, d, dims)
+        N = normalization(T, size(p.p), dims)
         scale = reshape(
             [(i == 1 || (i == n && 2 * (i - 1)) == d) ? 1 : 2 for i in 1:n],
             ntuple(i -> i == first(dims) ? n : 1, Val(ndims(x)))
@@ -617,7 +617,7 @@ function Base.:*(p::TransposedPlan{T}, x::AbstractArray) where {T}
         halfdim = first(dims)
         d = output_size(p.p, halfdim)
         n = size(p.p, halfdim)
-        N = normalization(T, d, dims)
+        N = normalization(real(T), output_size(p.p), dims)
         scale = reshape(
             [(i == 1 || (i == n && 2 * (i - 1)) == d) ? 1 : 2 for i in 1:n],
             ntuple(i -> i == first(dims) ? n : 1, Val(ndims(x)))
