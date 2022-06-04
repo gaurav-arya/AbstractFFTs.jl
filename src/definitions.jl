@@ -12,6 +12,7 @@ eltype(::Type{<:Plan{T}}) where {T} = T
 
 # size(p) should return the size of the input array for p
 size(p::Plan, d) = size(p)[d]
+output_size(p::Plan, d) = output_size(p)[d]
 ndims(p::Plan) = length(size(p))
 length(p::Plan) = prod(size(p))::Int
 
@@ -242,6 +243,7 @@ ScaledPlan(p::Plan{T}, scale::Number) where {T} = ScaledPlan{T}(p, scale)
 ScaledPlan(p::ScaledPlan, α::Number) = ScaledPlan(p.p, p.scale * α)
 
 size(p::ScaledPlan) = size(p.p)
+output_size(p::ScaledPlan) = size(p)
 
 show(io::IO, p::ScaledPlan) = print(io, p.scale, " * ", p.p)
 summary(p::ScaledPlan) = string(p.scale, " * ", summary(p.p))
@@ -327,6 +329,16 @@ function brfft_output_size(sz::Dims{N}, d::Integer, region) where {N}
     d1 = first(region)
     @assert sz[d1] == d>>1 + 1
     return ntuple(i -> i == d1 ? d : sz[i], Val(N))
+end
+
+function output_size(p::Plan)
+    if projection_style(p) == :none
+        return size(p)
+    elseif projection_style(p) == :real
+        return rfft_output_size(size(p), region(p))
+    elseif projection_style(p) == :real_inv
+        return brfft_output_size(size(p), irfft_dim(p), region(p))
+    end
 end
 
 plan_irfft(x::AbstractArray{Complex{T}}, d::Integer, region; kws...) where {T} =
@@ -569,39 +581,49 @@ region(p::ScaledPlan) = region(p.p)
 
 # Projection style (:none, :real, or :real_inv) to handle real FFTs
 function projection_style end
+# Length of halved dimension, needed only for irfft 
+function irfft_dim end
 
-# Transpose of non-scaled plan, output is (transpose of P) * x
-function Base.transpose(P::Plan{T}, x::AbstractArray) where {T}
-    dims = region(P)
-    if projection_style(P) == :none
-        N = normalization(T, size(P), dims)
-        return 1/N * (P \ x)
-    elseif projection_style(P) == :real
+mutable struct TransposedPlan{T,P} <: Plan{T}
+    p::P
+    pinv::Plan
+    TransposedPlan{T,P}(p) where {T,P} = new(p)
+end
+TransposedPlan{T}(p::P) where {T,P} = TransposedPlan{T,P}(p)
+TransposedPlan(p::Plan{T}) where {T} = TransposedPlan{T}(p)
+size(p::TransposedPlan) = output_size(p)
+output_size(p::TransposedPlan) = size(p)
+
+Base.transpose(p::Plan) = TransposedPlan(p)
+# always have real plan inside transposed inside scaled
+Base.transpose(p::ScaledPlan{T}) where {T} = ScaledPlan(TransposedPlan{T}(p.p), p.scale)
+Base.transpose(p::TransposedPlan) = p.p
+function Base.:*(p::TransposedPlan{T}, x::AbstractArray) where {T}
+    dims = region(p.p)
+    if projection_style(p.p) == :none
+        N = normalization(T, size(p.p), dims)
+        return 1/N * (p.p \ x)
+    elseif projection_style(p.p) == :real
         halfdim = first(dims)
-        n = size(x, halfdim)
-        d = size(P, halfdim)
+        d = size(p.p, halfdim)
+        n = output_size(p.p, halfdim)
         N = normalization(T, d, dims)
         scale = reshape(
             [(i == 1 || (i == n && 2 * (i - 1)) == d) ? 1 : 2 for i in 1:n],
             ntuple(i -> i == first(dims) ? n : 1, Val(ndims(x)))
         )
-        return 1/N * (P \ (x ./ scale))
-    elseif projection_style(P) == :real_inv
+        return 1/N * (p.p \ (x ./ scale))
+    elseif projection_style(p.p) == :real_inv
         halfdim = first(dims)
-        d = size(x, halfdim)
-        n = size(P, halfdim)
+        d = output_size(p.p, halfdim)
+        n = size(p.p, halfdim)
         N = normalization(T, d, dims)
         scale = reshape(
             [(i == 1 || (i == n && 2 * (i - 1)) == d) ? 1 : 2 for i in 1:n],
             ntuple(i -> i == first(dims) ? n : 1, Val(ndims(x)))
         )
-        return 1/N * scale .* (P \ x)
+        return 1/N * scale .* (p.p \ x)
     else
         error("plan must define a valid projection style")
     end
-end
-
-# Transpose of scaled plan
-function Base.transpose(P::ScaledPlan{T}, x::AbstractArray) where {T}
-    return P.scale * transpose(P.p, x)
 end

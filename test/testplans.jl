@@ -113,6 +113,7 @@ end
 
 AbstractFFTs.projection_style(::TestRPlan) = :real
 AbstractFFTs.projection_style(::InverseTestRPlan) = :real_inv
+AbstractFFTs.irfft_dim(p::InverseTestRPlan) = p.d
 
 function AbstractFFTs.plan_rfft(x::AbstractArray{T}, region; kwargs...) where {T}
     return TestRPlan{T}(region, size(x))

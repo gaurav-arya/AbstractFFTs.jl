@@ -197,26 +197,26 @@ end
             x = rand(L)
             y = rand(L)
             P = plan_fft(similar(x))
-            @test dot(y, P * x) ≈ dot(transpose(P, y), x) 
+            @test dot(y, P * x) ≈ dot(transpose(P) * y, x) 
             Pinv = plan_ifft(similar(x))
-            @test dot(x, Pinv * y) ≈ dot(transpose(Pinv, x), y) 
+            @test dot(x, Pinv * y) ≈ dot(transpose(Pinv) * x, y) 
         end
     end
     @testset "rfft transpose" begin
-        for L in [4, 4] 
+        for L in [4, 5] 
             x = rand(L)
             y_real = zeros(L÷2 + 1)
             y_real[1] = 1 
             y_imag = zeros(L÷2 + 1)
             y = y_real .+ y_imag .* im 
-            # whole function is real -> complex, so for transposes I think we need to turn the complex output into a real vector 
+            # whole function is real -> complex, so we need to turn the complex output into a real vector for dot products
             y_flat = vcat(y_real, y_imag)
             P = plan_rfft(similar(x))
             Px = P * x
             Px_flat = vcat(real.(Px), imag.(Px))
-            @test dot(y_flat, Px_flat) ≈ dot(transpose(P, y), x) 
+            @test dot(y_flat, Px_flat) ≈ dot(transpose(P) * y, x) 
             Pinv = plan_irfft(similar(y), L)
-            PinvTx = transpose(Pinv, x)
+            PinvTx = transpose(Pinv) * x
             PinvTx_flat = vcat(real.(PinvTx), imag.(PinvTx))
             @test dot(x, Pinv * y) ≈ dot(PinvTx_flat, y_flat)
         end
