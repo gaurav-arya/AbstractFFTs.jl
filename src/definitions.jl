@@ -12,6 +12,7 @@ eltype(::Type{<:Plan{T}}) where {T} = T
 
 # size(p) should return the size of the input array for p
 size(p::Plan, d) = size(p)[d]
+output_size(p::Plan, d) = output_size(p)[d]
 ndims(p::Plan) = length(size(p))
 length(p::Plan) = prod(size(p))::Int
 
@@ -254,6 +255,7 @@ ScaledPlan(p::Plan{T}, scale::Number) where {T} = ScaledPlan{T}(p, scale)
 ScaledPlan(p::ScaledPlan, α::Number) = ScaledPlan(p.p, p.scale * α)
 
 size(p::ScaledPlan) = size(p.p)
+output_size(p::ScaledPlan) = size(p)
 
 region(p::ScaledPlan) = region(p.p)
 
@@ -301,9 +303,12 @@ for f in (:brfft, :irfft)
 end
 
 for f in (:brfft, :irfft)
+    pf = Symbol("plan_", f)
     @eval begin
         $f(x::AbstractArray{<:Real}, d::Integer, region=1:ndims(x)) = $f(complexfloat(x), d, region)
+        $pf(x::AbstractArray{<:Real}, d::Integer, region; kws...) = $pf(complexfloat(x), d, region; kws...)
         $f(x::AbstractArray{<:Complex{<:Union{Integer,Rational}}}, d::Integer, region=1:ndims(x)) = $f(complexfloat(x), d, region)
+        $pf(x::AbstractArray{<:Complex{<:Union{Integer,Rational}}}, d::Integer, region; kws...) = $pf(complexfloat(x), d, region; kws...)
     end
 end
 
@@ -341,6 +346,16 @@ function brfft_output_size(sz::Dims{N}, d::Integer, region) where {N}
     d1 = first(region)
     @assert sz[d1] == d>>1 + 1
     return ntuple(i -> i == d1 ? d : sz[i], Val(N))
+end
+
+function output_size(p::Plan)
+    if projection_style(p) == :none
+        return size(p)
+    elseif projection_style(p) == :real
+        return rfft_output_size(size(p), region(p))
+    elseif projection_style(p) == :real_inv
+        return brfft_output_size(size(p), irfft_dim(p), region(p))
+    end
 end
 
 plan_irfft(x::AbstractArray{Complex{T}}, d::Integer, region; kws...) where {T} =
@@ -575,3 +590,58 @@ Pre-plan an optimized real-input unnormalized transform, similar to
 the same as for [`brfft`](@ref).
 """
 plan_brfft
+
+##############################################################################
+
+region(p::Plan) = p.region
+region(p::ScaledPlan) = region(p.p)
+
+# Projection style (:none, :real, or :real_inv) to handle real FFTs
+function projection_style end
+# Length of halved dimension, needed only for irfft 
+function irfft_dim end
+
+mutable struct AdjointPlan{T,P} <: Plan{T}
+    p::P
+    pinv::Plan
+    AdjointPlan{T,P}(p) where {T,P} = new(p)
+    # always have adjoint inside scaled
+    AdjointPlan{T,P}(p::P) where {T,P<:ScaledPlan{T}} = ScaledPlan{T}(AdjointPlan{T}(p.p), p.scale)
+    AdjointPlan{T,P}(p::AdjointPlan{T}) where {T,P} = new(p.p)
+end
+
+AdjointPlan{T}(p::P) where {T,P} = AdjointPlan{T,P}(p)
+AdjointPlan(p::Plan{T}) where {T} = AdjointPlan{T}(p)
+Base.adjoint(p::Plan{T}) where {T} = AdjointPlan{T}(p)
+
+size(p::AdjointPlan) = output_size(p)
+output_size(p::AdjointPlan) = size(p)
+
+function Base.:*(p::AdjointPlan{T}, x::AbstractArray) where {T}
+    dims = region(p.p)
+    halfdim = first(dims)
+    d = size(p.p, halfdim)
+    n = output_size(p.p, halfdim)
+    if projection_style(p.p) == :none
+        N = normalization(T, size(p.p), dims)
+        return 1/N * (p.p \ x)
+    elseif projection_style(p.p) == :real
+        N = normalization(T, size(p.p), dims)
+        scale = reshape(
+            [(i == 1 || (i == n && 2 * (i - 1)) == d) ? 1 : 2 for i in 1:n],
+            ntuple(i -> i == first(dims) ? n : 1, Val(ndims(x)))
+        )
+        return 1/N * (p.p \ (x ./ scale))
+    elseif projection_style(p.p) == :real_inv
+        N = normalization(real(T), output_size(p.p), dims)
+        scale = reshape(
+            [(i == 1 || (i == d && 2 * (i - 1)) == n) ? 1 : 2 for i in 1:d],
+            ntuple(i -> i == first(dims) ? d : 1, Val(ndims(x)))
+        )
+        return 1/N * scale .* (p.p \ x)
+    else
+        error("plan must define a valid projection style")
+    end
+end
+
+plan_inv(p::AdjointPlan) = AdjointPlan(plan_inv(p.p))
