@@ -160,9 +160,10 @@ end
 function ChainRulesCore.rrule(::typeof(*), P::Plan, x::AbstractArray)
     y = P * x
     project_x = ChainRulesCore.ProjectTo(x)
-    function fft_pullback(ȳ)
-        x̄ = project_x(P' * ȳ)
+    Pt = P'
+    function mul_plan_pullback(ȳ)
+        x̄ = project_x(Pt * ȳ)
         return ChainRulesCore.NoTangent(), ChainRulesCore.NoTangent(), x̄
     end
-    return y, fft_pullback
+    return y, mul_plan_pullback
 end
