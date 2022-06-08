@@ -593,9 +593,6 @@ plan_brfft
 
 ##############################################################################
 
-region(p::Plan) = p.region
-region(p::ScaledPlan) = region(p.p)
-
 # Projection style (:none, :real, or :real_inv) to handle real FFTs
 function projection_style end
 # Length of halved dimension, needed only for irfft 
