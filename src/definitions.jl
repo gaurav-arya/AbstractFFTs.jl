@@ -303,12 +303,9 @@ for f in (:brfft, :irfft)
 end
 
 for f in (:brfft, :irfft)
-    pf = Symbol("plan_", f)
     @eval begin
         $f(x::AbstractArray{<:Real}, d::Integer, region=1:ndims(x)) = $f(complexfloat(x), d, region)
-        $pf(x::AbstractArray{<:Real}, d::Integer, region; kws...) = $pf(complexfloat(x), d, region; kws...)
         $f(x::AbstractArray{<:Complex{<:Union{Integer,Rational}}}, d::Integer, region=1:ndims(x)) = $f(complexfloat(x), d, region)
-        $pf(x::AbstractArray{<:Complex{<:Union{Integer,Rational}}}, d::Integer, region; kws...) = $pf(complexfloat(x), d, region; kws...)
     end
 end
 
