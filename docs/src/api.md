@@ -23,7 +23,7 @@ AbstractFFTs.fftdims
 Base.adjoint
 AbstractFFTs.FFTAdjointStyle
 AbstractFFTs.RFFTAdjointStyle
-AbstractFFTs.BRFFTAdjointStyle
+AbstractFFTs.IRFFTAdjointStyle
 AbstractFFTs.UnitaryAdjointStyle
 AbstractFFTs.fftshift
 AbstractFFTs.fftshift!

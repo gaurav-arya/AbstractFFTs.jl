@@ -608,7 +608,7 @@ to exploit its conjugate symmetry (see [`rfft`](@ref)).
 struct RFFTAdjointStyle <: AdjointStyle end 
 
 """
-    BRFFTAdjointStyle(d::Dim)
+    IRFFTAdjointStyle(d::Dim)
 
 Projection style for complex to real discrete Fourier transforms, for plans that 
 expect an input with a halved dimension analogously to [`irfft`](@ref), where `d` 
@@ -618,7 +618,7 @@ Since the Fourier transform is unitary up to a scaling, the adjoint applies the 
 inverse, but with additional logic to handle the fact that the input is projected 
 to exploit its conjugate symmetry (see [`irfft`](@ref)). 
 """
-struct BRFFTAdjointStyle <: AdjointStyle
+struct IRFFTAdjointStyle <: AdjointStyle
     dim::Int
 end
 
@@ -632,7 +632,7 @@ struct UnitaryAdjointStyle <: AdjointStyle end
 output_size(p::Plan) = _output_size(p, AdjointStyle(p))
 _output_size(p::Plan, ::FFTAdjointStyle) = size(p)
 _output_size(p::Plan, ::RFFTAdjointStyle) = rfft_output_size(size(p), fftdims(p))
-_output_size(p::Plan, s::BRFFTAdjointStyle) = brfft_output_size(size(p), s.dim, fftdims(p))
+_output_size(p::Plan, s::IRFFTAdjointStyle) = brfft_output_size(size(p), s.dim, fftdims(p))
 _output_size(p::Plan, ::UnitaryAdjointStyle) = size(p)
 
 struct AdjointPlan{T,P<:Plan} <: Plan{T}
@@ -681,7 +681,7 @@ function adjoint_mul(p::AdjointPlan{T}, x::AbstractArray, ::RFFTAdjointStyle) wh
     return p.p \ (x ./ convert(typeof(x), scale))
 end
 
-function adjoint_mul(p::AdjointPlan{T}, x::AbstractArray, ::BRFFTAdjointStyle) where {T}
+function adjoint_mul(p::AdjointPlan{T}, x::AbstractArray, ::IRFFTAdjointStyle) where {T}
     dims = fftdims(p.p)
     N = normalization(real(T), output_size(p.p), dims)
     halfdim = first(dims)

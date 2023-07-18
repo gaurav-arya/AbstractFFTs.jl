@@ -111,7 +111,7 @@ mutable struct InverseTestRPlan{T,N,G} <: Plan{Complex{T}}
 end
 
 AbstractFFTs.AdjointStyle(::TestRPlan) = AbstractFFTs.RFFTAdjointStyle()
-AbstractFFTs.AdjointStyle(p::InverseTestRPlan) = AbstractFFTs.BRFFTAdjointStyle(p.d)
+AbstractFFTs.AdjointStyle(p::InverseTestRPlan) = AbstractFFTs.IRFFTAdjointStyle(p.d)
 
 function AbstractFFTs.plan_rfft(x::AbstractArray{T}, region; kwargs...) where {T<:Real}
     return TestRPlan{T}(region, size(x))
