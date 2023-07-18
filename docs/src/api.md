@@ -21,6 +21,10 @@ AbstractFFTs.plan_brfft
 AbstractFFTs.plan_irfft
 AbstractFFTs.fftdims
 Base.adjoint
+AbstractFFTs.FFTAdjointStyle
+AbstractFFTs.RFFTAdjointStyle
+AbstractFFTs.BRFFTAdjointStyle
+AbstractFFTs.UnitaryAdjointStyle
 AbstractFFTs.fftshift
 AbstractFFTs.fftshift!
 AbstractFFTs.ifftshift

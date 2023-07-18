@@ -583,35 +583,57 @@ plan_brfft
 
 ##############################################################################
 
-abstract type ProjectionStyle end
+abstract type AdjointStyle end
 
 """
-    NoProjectionStyle()
+    FFTAdjointStyle()
 
-Projection style for complex to complex discrete Fourier transform
+Projection style for complex to complex discrete Fourier transforms. 
+    
+Since the Fourier transform is unitary up to a scaling, the adjoint simply applies 
+the transform's inverse with an appropriate scaling.
 """
-struct NoProjectionStyle <: ProjectionStyle end
-
-"""
-    RealProjectionStyle()
-
-Projection style for complex to real discrete Fourier transform
-"""
-struct RealProjectionStyle <: ProjectionStyle end 
+struct FFTAdjointStyle <: AdjointStyle end
 
 """
-    RealInverseProjectionStyle()
+    RFFTAdjointStyle()
 
-Projection style for inverse of complex to real discrete Fourier transform
+Projection style for real to complex discrete Fourier transforms, for plans that 
+halve one of the output's dimensions analogously to [`rfft`](@ref).
+    
+Since the Fourier transform is unitary up to a scaling, the adjoint applies the transform's 
+inverse, but with additional logic to handle the fact that the output is projected 
+to exploit its conjugate symmetry (see [`rfft`](@ref)). 
 """
-struct RealInverseProjectionStyle <: ProjectionStyle
+struct RFFTAdjointStyle <: AdjointStyle end 
+
+"""
+    BRFFTAdjointStyle(d::Dim)
+
+Projection style for complex to real discrete Fourier transforms, for plans that 
+expect an input with a halved dimension analogously to [`irfft`](@ref), where `d` 
+is the original length of the dimension.
+    
+Since the Fourier transform is unitary up to a scaling, the adjoint applies the transform's 
+inverse, but with additional logic to handle the fact that the input is projected 
+to exploit its conjugate symmetry (see [`irfft`](@ref)). 
+"""
+struct BRFFTAdjointStyle <: AdjointStyle
     dim::Int
 end
 
-output_size(p::Plan) = _output_size(p, ProjectionStyle(p))
-_output_size(p::Plan, ::NoProjectionStyle) = size(p)
-_output_size(p::Plan, ::RealProjectionStyle) = rfft_output_size(size(p), fftdims(p))
-_output_size(p::Plan, s::RealInverseProjectionStyle) = brfft_output_size(size(p), s.dim, fftdims(p))
+"""
+    UnitaryAdjointStyle()
+
+Projection style for unitary transforms, whose adjoint equals their inverse.
+"""
+struct UnitaryAdjointStyle <: AdjointStyle end
+
+output_size(p::Plan) = _output_size(p, AdjointStyle(p))
+_output_size(p::Plan, ::FFTAdjointStyle) = size(p)
+_output_size(p::Plan, ::RFFTAdjointStyle) = rfft_output_size(size(p), fftdims(p))
+_output_size(p::Plan, s::BRFFTAdjointStyle) = brfft_output_size(size(p), s.dim, fftdims(p))
+_output_size(p::Plan, ::UnitaryAdjointStyle) = size(p)
 
 struct AdjointPlan{T,P<:Plan} <: Plan{T}
     p::P
@@ -638,15 +660,15 @@ Base.adjoint(p::ScaledPlan) = ScaledPlan(p.p', p.scale)
 size(p::AdjointPlan) = output_size(p.p)
 output_size(p::AdjointPlan) = size(p.p)
 
-Base.:*(p::AdjointPlan, x::AbstractArray) = _mul(p, x, ProjectionStyle(p.p))
+Base.:*(p::AdjointPlan, x::AbstractArray) = adjoint_mul(p, x, AdjointStyle(p.p))
 
-function _mul(p::AdjointPlan{T}, x::AbstractArray, ::NoProjectionStyle) where {T}
+function adjoint_mul(p::AdjointPlan{T}, x::AbstractArray, ::FFTAdjointStyle) where {T}
     dims = fftdims(p.p)
     N = normalization(T, size(p.p), dims)
     return (p.p \ x) / N
 end
 
-function _mul(p::AdjointPlan{T}, x::AbstractArray, ::RealProjectionStyle) where {T<:Real}
+function adjoint_mul(p::AdjointPlan{T}, x::AbstractArray, ::RFFTAdjointStyle) where {T<:Real}
     dims = fftdims(p.p)
     N = normalization(T, size(p.p), dims)
     halfdim = first(dims)
@@ -659,7 +681,7 @@ function _mul(p::AdjointPlan{T}, x::AbstractArray, ::RealProjectionStyle) where 
     return p.p \ (x ./ convert(typeof(x), scale))
 end
 
-function _mul(p::AdjointPlan{T}, x::AbstractArray, ::RealInverseProjectionStyle) where {T}
+function adjoint_mul(p::AdjointPlan{T}, x::AbstractArray, ::BRFFTAdjointStyle) where {T}
     dims = fftdims(p.p)
     N = normalization(real(T), output_size(p.p), dims)
     halfdim = first(dims)
@@ -671,6 +693,8 @@ function _mul(p::AdjointPlan{T}, x::AbstractArray, ::RealInverseProjectionStyle)
     )
     return (convert(typeof(x), scale) ./ N) .* (p.p \ x)
 end
+
+adjoint_mul(p::AdjointPlan, x::AbstractArray, ::UnitaryAdjointStyle) = p.p \ x
 
 # Analogously to ScaledPlan, define both plan_inv (for no caching) and inv (caches inner plan only).
 plan_inv(p::AdjointPlan) = adjoint(plan_inv(p.p)) 
